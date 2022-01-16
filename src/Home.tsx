@@ -18,37 +18,73 @@ import { timeConverter } from './utils/timeConverter';
 
 export function Home() {
 
-  const [actualSong, setActualSong] = useState(0);
   const [sound, setSound] = useState<Audio.Sound>()
-  const [isPlaying, setIsPlaying] = useState(false);
   const [info, setInfo] = useState<any>()
+
+  const [song, setSong] = useState(songs[0]); //Música atual
+  const [isPlaying, setIsPlaying] = useState(false);
+  
 
   const [currentTime, setCurrentTime] = useState(0);
 
-  async function playSound() {
-    if (!sound) {
-      console.log('Loading Sound');
-      const { sound: newSound, status } = await Audio.Sound.createAsync(
-         require('../public/songs/billie_jean.mp3'),
-      );
+  async function loadSong(file: any){
+    const { sound: newSound, status } = await Audio.Sound.createAsync(
+      file
+   );
+
+   newSound.setOnPlaybackStatusUpdate((status: any) => setCurrentTime(status.positionMillis));
+
+   setSound(newSound);
+   setInfo(status);
+
+   console.log('loaded status', status);
+
+  }
   
+
+  useEffect(() => {
+    loadSong(song.file);
+  }, [])
+
+  async function playSound(file?: any) {
+    setIsPlaying(false);
+
+    if (file) {
+
+      if(sound){
+        
+        await sound.stopAsync();
+        // await sound.unloadAsync();
+        // setCurrentTime(0);
+        // return;
+      }
+      
+      const { sound: newSound, status } = await Audio.Sound.createAsync(
+        file
+      );
+
+      setSound(newSound);
       setInfo(status);
 
       await newSound.playAsync();
 
-      console.log('Status', status)
+      // await newSound.unloadAsync();
+
+      
   
       newSound.setOnPlaybackStatusUpdate((status: any) => setCurrentTime(status.positionMillis));
   
-      setSound(newSound);
     }else{
-      sound.playFromPositionAsync(currentTime);
+      sound?.playFromPositionAsync(currentTime);
       console.log('Resuming...');
     }
+
+    setIsPlaying(true);
     
   }
 
   async function pauseSound() {
+    setIsPlaying(false);
     if (sound){
       console.log('Pausing Sound');
 
@@ -59,22 +95,43 @@ export function Home() {
   async function togglePlayPause() {
     if(isPlaying){
       pauseSound();
-      setIsPlaying(false);
+      
     }else{
       playSound();
-      setIsPlaying(true);
     }
    
   }
 
   useEffect(() => {
-    return sound
-      ? () => {
-          console.log('Unloading Sound');
-          sound.unloadAsync(); }
-      : undefined;
-  }, [sound]);
+    isPlaying ? playSound(song.file) : loadSong(song.file);
+  
+  }, [song]);
 
+  const handleNext = () => {
+    const index = songs.findIndex(s => s.id === song.id);
+    const nextSong = songs[index + 1];
+
+    console.log('Next Song', nextSong)
+
+    if(nextSong){
+      setSong({...nextSong});
+    }else{
+      setSong({...songs[0]});  
+    }
+  }
+
+  const handlePrevious = () => {
+    const index = songs.findIndex(s => s.id === song.id);
+
+    const previousSong = songs[index - 1];
+
+    if(previousSong){
+      setSong(previousSong);
+    }else{
+      setSong(songs[songs.length - 1]);
+    }
+
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -83,11 +140,11 @@ export function Home() {
         
         <Text style = {styles.statusText}>Now playing</Text>
        
-        <Image style = {styles.songImage} source = {require('./assets/songs/billie_jean.jpg')} />
+        <Image style = {styles.songImage} source = {song.image} />
 
         <View>
-          <Text style = {styles.songTitle}>{songs[actualSong].title}</Text>
-          <Text style = {styles.songArtist}>{songs[actualSong].artist}</Text>
+          <Text style = {styles.songTitle}>{song.title}</Text>
+          <Text style = {styles.songArtist}>{song.artist}</Text>
         </View>
         
         <Progress.Bar style = {styles.progress} borderWidth={0}  unfilledColor = '#F2F2F2' progress={info? (currentTime / info.durationMillis): 0} width={300} />   
@@ -96,7 +153,7 @@ export function Home() {
             <Text style = {styles.currentTime}>{timeConverter(currentTime)}</Text>
 
             <View style = {styles.buttons}>
-                <TouchableOpacity activeOpacity={0.5} style= {{...styles.button, ...styles.previous, }} >
+                <TouchableOpacity onPress = {handlePrevious} activeOpacity={0.5} style= {{...styles.button, ...styles.previous, }} >
                     <PreviousIcon width={20} height={20} />
                     {/* <Image style = {{...styles.icon,}} source={require('./assets/icons/previous.png')}/> */}
                 </TouchableOpacity >
@@ -119,7 +176,7 @@ export function Home() {
                 </TouchableOpacity >
             
                 
-                <TouchableOpacity activeOpacity={0.5} style= {{...styles.button, ...styles.next}} >
+                <TouchableOpacity onPress={handleNext}  activeOpacity={0.5} style= {{...styles.button, ...styles.next}} >
                     <NextIcon width={20} height={20} />
                     {/* <Image style = {{...styles.icon,}} source={require('./assets/icons/next.png')}/> */}
                 </TouchableOpacity >
@@ -127,9 +184,24 @@ export function Home() {
 
             <Text style = {styles.totalTime}>{timeConverter(info? info.durationMillis: 0)}</Text>
         </View>
+
+        <View style = {styles.containerMoreInfo} >
+          <Text style = {styles.moreInfoTitle}>More Info</Text>
+
+          <View style = {styles.moreInfo}>
+            <Text style = {styles.songYear}>Year: {song.year}</Text>
+            <Text style = {styles.songAlbum} >Album: {song.album}</Text>
+            <Text style = {styles.songGenre}>Genre: {song.genre}</Text>
+            
+          </View>
+          
+        </View>
+       
        
 
       </View>
+
+      
 
       
     </SafeAreaView>
@@ -143,6 +215,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     flexDirection: 'column',
+    width: '100%',
     // justifyContent: 'center',
   },
 
@@ -169,11 +242,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333333'
+    color: '#333333',
+    marginTop: 40,
   },
   songArtist: {
     textAlign: 'center',
     fontSize: 20,
+    marginTop: 10,
     color: '#828282',
   },
 
@@ -183,7 +258,7 @@ const styles = StyleSheet.create({
   },
 
   progress: {
-    marginTop: 20,
+    marginTop: 40,
   },
 
   totalTime: {
@@ -255,6 +330,41 @@ const styles = StyleSheet.create({
     height: 40,
   },
 
-  
+  containerMoreInfo: {
+    display: 'flex',
+    flex: 1,
+    width: "100%",
+    overflow: 'hidden',
+    marginTop: 30,
+  },
+
+  moreInfo: {
+    marginTop: 20,
+    display: 'flex',
+    flexDirection: 'row',
+    flexWrap : 'wrap',
+    lineHeight: 20,
+  },
+
+  moreInfoTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333333',
+    display: 'flex',
+    // textAlign: 'center',
+    
+  },
+  songYear: {
+    marginRight: 20,
+  },
+
+  songAlbum: {
+    marginRight: 20,
+  },
+
+  songGenre: {
+    margin: 0,
+  }
+
 
 });
