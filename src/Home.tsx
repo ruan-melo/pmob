@@ -47,7 +47,7 @@ export function Home() {
   }, [])
 
   async function playSound(file?: any) {
-    setIsPlaying(false);
+    
 
     if (file) {
 
