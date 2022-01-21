@@ -23,7 +23,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./public/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
-      }
+      },
+      "package": "com.ruantmelo.music.player"
     },
     "web": {
       "favicon": "./public/favicon.png"
